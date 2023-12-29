@@ -10,14 +10,18 @@ This firmware is for the TTGO Watch 2020 V3. It may work on other models but has
 The power button works normally (press for 2s to turn on and 6s to turn off) but also works as a mode button when pressed for less than 2s. It changes between the various modes:
 
 * Standby (screen off but still connected)
-* KAOS style X-Y touch pad, sending two MIDI CC messages
+* KAOSS style X-Y touch pad, sending two MIDI CC messages
 * Pad launcher - 4x4 grid of pads that will send CC message when touched
 
 Specific received MIDI messages will trigger the watch to vibrate and display a pulsed circle in the X-Y view.
 
 Touching the screen, rotating the watch, connecting Bluetooth or receiving a relevant MIDI message will wake it from standby.
 
-The watch is always visible as a Bluetooth device and offers no authentication. Bluetooth clients may connect to the watch. When a BLE MIDI connection is made, a blue indication appears at the top right of the screen. 
+Pressing the power button for 2s when the watch is on will show the admin options which allow access to the settings menu and powering off.
+
+Settings menu allows Bluetooth to be toggled, MIDI channel and CCs to be changed.
+
+When BLE is enabled the watch is always visible as a Bluetooth device and offers no authentication. Bluetooth clients may connect to the watch. When a BLE MIDI connection is made, a blue indication appears at the top right of the screen. 
 
 # Building
 
