@@ -34,6 +34,8 @@ enum mode_enum {
     MODE_NAVIGATE1,
     MODE_NAVIGATE2,
     MODE_SETTINGS,
+    MODE_MENU,
+    MODE_ENCODERS,
     MODE_POWEROFF,
     MODE_BLE,
     MODE_MIDICHAN,
@@ -59,11 +61,13 @@ enum setting_enum {
 TTGOClass* ttgo; // Pointer to singleton instance of ttgo watch object
 BMA* accel; // Pointer to accelerometer sensor
 TFT_eSprite* canvas; // Pointer to sprite acting as display double buffer
+TFT_eSprite* menuCanvas; // Pointer to sprite acting as display double buffer
+TFT_eSprite* statusCanvas; // Pointer to sprite acting as display double buffer
 
 class gfxButton {
     public:
-        gfxButton(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t bg, uint32_t bgh, const char* text=nullptr, uint8_t mode=MODE_NONE) :
-            m_x(x), m_y(y), m_w(w), m_h(h), m_bg(bg), m_bgh(bgh), m_mode(mode) {
+        gfxButton(TFT_eSprite* canvas, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t bg, uint32_t bgh, const char* text=nullptr, uint8_t mode=MODE_NONE) :
+            m_canvas(canvas), m_x(x), m_y(y), m_w(w), m_h(h), m_bg(bg), m_bgh(bgh), m_mode(mode) {
                 m_fg = TFT_WHITE;
                 m_rad = m_h / 4;
                 m_indent_x = m_w / 2;
@@ -79,24 +83,24 @@ class gfxButton {
         }
 
         void draw(bool hl=false) {
-            canvas->fillRoundRect(m_x, m_y, m_w, m_h, m_rad, hl?m_bgh:m_bg);
+            m_canvas->fillRoundRect(m_x, m_y, m_w, m_h, m_rad, hl?m_bgh:m_bg);
             if (m_text) {
-                canvas->setTextColor(m_fg);
-                canvas->setTextDatum(m_align);
-                canvas->drawString(m_text, m_x + m_indent_x, m_y + m_indent_y, 1);
-                canvas->setTextDatum(TL_DATUM);
+                m_canvas->setTextColor(m_fg);
+                m_canvas->setTextDatum(m_align);
+                m_canvas->drawString(m_text, m_x + m_indent_x, m_y + m_indent_y, 1);
+                m_canvas->setTextDatum(TL_DATUM);
             }
         }
 
         void drawBar(uint16_t percent) {
             uint16_t x = percent * m_w / 100;
-            canvas->fillRoundRect(m_x, m_y, m_w, m_h, m_rad, m_bg);
-            canvas->fillRoundRect(m_x, m_y, x, m_h, m_rad, m_bgh);
+            m_canvas->fillRoundRect(m_x, m_y, m_w, m_h, m_rad, m_bg);
+            m_canvas->fillRoundRect(m_x, m_y, x, m_h, m_rad, m_bgh);
             if (m_text) {
-                canvas->setTextColor(m_fg);
-                canvas->setTextDatum(m_align);
-                canvas->drawString(m_text, m_x + m_indent_x, m_y + m_indent_y, 1);
-                canvas->setTextDatum(TL_DATUM);
+                m_canvas->setTextColor(m_fg);
+                m_canvas->setTextDatum(m_align);
+                m_canvas->drawString(m_text, m_x + m_indent_x, m_y + m_indent_y, 1);
+                m_canvas->setTextDatum(TL_DATUM);
             }
         }
 
@@ -108,6 +112,7 @@ class gfxButton {
             return m_mode;
         }
 
+    TFT_eSprite* m_canvas;
     uint32_t m_bg, m_bgh, m_fg;
     uint16_t m_x, m_y, m_w, m_h;
     uint8_t m_rad;
@@ -118,29 +123,20 @@ class gfxButton {
     char * m_text = nullptr;
 };
 
-gfxButton* settingsBtns[] = {
-    new gfxButton(20, 20, 200, 54, TFT_DARKGREY, 0xa514, "BLE", MODE_BLE),
-    new gfxButton(20, 75, 200, 54, TFT_DARKGREY, 0xa514, "MIDI CHAN", MODE_MIDICHAN),
-    new gfxButton(20, 130, 200, 54, TFT_DARKGREY, 0xa514, "X-CC", MODE_CCX),
-    new gfxButton(20, 185, 200, 54, TFT_DARKGREY, 0xa514, "Y-CC", MODE_CCY),
-    new gfxButton(20, 240, 200, 54, TFT_DARKGREY, 0xa514, "Rx-CC", MODE_CCRX),
-    new gfxButton(20, 295, 200, 54, TFT_DARKGREY, 0xa514, "Brightness", MODE_BRIGHTNESS),
-    new gfxButton(20, 350, 200, 54, TFT_DARKGREY, 0xa514, "Screen time", MODE_TIMEOUT)
-};
-
-gfxButton* navigationBtns[9] = {};
+gfxButton* menuBtns[5];
+gfxButton* settingsBtns[7];
+gfxButton* navigationBtns[9];
 gfxButton* launchPads[16];
 gfxButton* numPad[11];
 
 uint8_t settings[] = {0, 15, 101, 102, 100, 100, 60}; // Array of 8-bit settings - see setting_enum
 uint8_t pulseRadius = 0; // Radius of pulse cirle (decreases over time)
 uint8_t lastPulseRadius = 0; // Radius of last pulse cirle (used to clear circle)
-uint8_t mode = MODE_XY; // Menu / display mode
-uint8_t lastMode = MODE_XY; // Store previous mode to allow back action
-uint8_t selPad = -1; // Index of selected pad
+uint8_t mode = MODE_MENU; // Menu / display mode
+uint8_t selPad = 255; // Index of selected pad
 uint8_t oskSel = MODE_NONE; // Index of button selected on touch screen
 uint8_t settingsOffset = 0; // Settings view scroll position
-uint8_t crosshair_x = 120, crosshair_y = 130; // Coordinates of X-Y controller crosshairs
+uint8_t crosshair_x = 120, crosshair_y = 110; // Coordinates of X-Y controller crosshairs
 uint8_t battery; // Battery %
 volatile uint32_t screenTimeout = 0; // Countdown timer until auto standby mode
 uint32_t now = 0; // Time of current loop process
@@ -148,18 +144,25 @@ uint32_t cpuLoad = 0; // Main loop cycles per ms
 bool standby = true; // True if in standby mode (screen off)
 volatile bool irq = false;
 uint8_t eepromSize = sizeof(settings);
+uint8_t topDrag = 0; // Y position of top drag down
 
 // Initialisation
 void setup(void)
 {
     Serial.begin(115200); // Can use USB for debug
-
+    
     ttgo = TTGOClass::getWatch(); // Create instance of watch object (singleton)
     ttgo->begin(); // Initialise watch object
     canvas = new TFT_eSprite(ttgo->tft);
-    canvas->createSprite(240, 240);
+    canvas->createSprite(240, 220);
     canvas->setFreeFont(&Riban_24);
-
+    menuCanvas = new TFT_eSprite(ttgo->tft);
+    menuCanvas->createSprite(240, 220);
+    menuCanvas->setFreeFont(&Riban_24);
+    statusCanvas = new TFT_eSprite(ttgo->tft);
+    statusCanvas->createSprite(240, 20);
+    statusCanvas->setFreeFont(&Riban_24);
+    
     EEPROM.begin(eepromSize + 4);
     uint32_t magic;
     EEPROM.readBytes(0, &magic, 4);
@@ -168,7 +171,19 @@ void setup(void)
         ttgo->setBrightness(settings[SETTING_BRIGHTNESS]);
     }
 
-    // Configure settings menu buttons
+    menuBtns[0] = new gfxButton(menuCanvas, 0, 0, 78, 73, TFT_DARKGREY, 0xa514, "XY", MODE_XY);
+    menuBtns[1] = new gfxButton(menuCanvas, 80, 0, 78, 73, TFT_DARKGREY, 0xa514, "Pads", MODE_PADS);
+    menuBtns[2] = new gfxButton(menuCanvas, 160, 0, 78, 73, TFT_DARKGREY, 0xa514, "Nav", MODE_NAVIGATE1);
+    menuBtns[3] = new gfxButton(menuCanvas, 0, 80, 78, 73, TFT_DARKGREY, 0xa514, "ENC", MODE_ENCODERS);
+    menuBtns[4] = new gfxButton(menuCanvas, 80, 80, 78, 73, TFT_DARKGREY, 0xa514, "Conf", MODE_SETTINGS);
+
+    settingsBtns[0] = new gfxButton(canvas, 20, 0, 200, 54, TFT_DARKGREY, 0xa514, "BLE", MODE_BLE);
+    settingsBtns[1] = new gfxButton(canvas, 20, 55, 200, 54, TFT_DARKGREY, 0xa514, "MIDI CHAN", MODE_MIDICHAN);
+    settingsBtns[2] = new gfxButton(canvas, 20, 120, 200, 54, TFT_DARKGREY, 0xa514, "X-CC", MODE_CCX);
+    settingsBtns[3] = new gfxButton(canvas, 20, 165, 200, 54, TFT_DARKGREY, 0xa514, "Y-CC", MODE_CCY);
+    settingsBtns[4] = new gfxButton(canvas, 20, 230, 200, 54, TFT_DARKGREY, 0xa514, "Rx-CC", MODE_CCRX);
+    settingsBtns[5] = new gfxButton(canvas, 20, 275, 200, 54, TFT_DARKGREY, 0xa514, "Brightness", MODE_BRIGHTNESS);
+    settingsBtns[6] = new gfxButton(canvas, 20, 340, 200, 54, TFT_DARKGREY, 0xa514, "Screen time", MODE_TIMEOUT);
     for (uint8_t i = 0; i < 7; ++i) {
         gfxButton* btn = settingsBtns[i];
         btn->m_align = ML_DATUM;
@@ -179,7 +194,7 @@ void setup(void)
     uint8_t i = 0;
     for (uint8_t col = 0; col < 4; ++col) {
         for (uint8_t row = 0; row < 4; ++row) {
-            launchPads[i] = new gfxButton(col * 60, 20 + row * 55, 59, 54, PAD_COLOURS[0], 0x4208);
+            launchPads[i] = new gfxButton(canvas, col * 60, row * 55, 59, 54, PAD_COLOURS[0], 0x4208);
             ++i;
         }
     }
@@ -189,22 +204,22 @@ void setup(void)
     for (uint8_t row = 0; row < 3; ++row) {
         for (uint8_t col = 0; col < 3; ++col) {
             uint8_t id = BTN_IDS[i];
-            navigationBtns[i] = new gfxButton(col * 80, 20 + row * 73, 79, 72, PAD_COLOURS[0], 0x4208, BTN_LABELS[id], id);
+            navigationBtns[i] = new gfxButton(canvas, col * 80, row * 73, 79, 72, PAD_COLOURS[0], 0x4208, BTN_LABELS[id], id);
             ++i;
         }
     }
 
     // Build numeric keyapd
-    numPad[0] = new gfxButton(0, 20, 78, 54, TFT_DARKGREY, 0xa514, "0", 0);
+    numPad[0] = new gfxButton(canvas, 0, 0, 78, 54, TFT_DARKGREY, 0xa514, "0", 0);
     char txt[2];
     for (uint8_t col = 0; col < 3; ++col) {
         for (uint8_t row = 0; row < 3; ++row) {
             uint8_t i = col + row * 3 + 1;
             sprintf(txt, "%d", i);
-            numPad[i] = new gfxButton(col * 80, 20 + 55 + row * 55, 78, 54, TFT_DARKGREY, 0xa514, txt, i);
+            numPad[i] = new gfxButton(canvas, col * 80, 55 + row * 55, 78, 54, TFT_DARKGREY, 0xa514, txt, i);
         }
     }
-    numPad[10] = new gfxButton(80, 20, 158, 54, 0xa514, TFT_DARKGREY, "   ", 10);
+    numPad[10] = new gfxButton(canvas, 80, 0, 158, 54, 0xa514, TFT_DARKGREY, "   ", 10);
     numPad[10]->m_fg = TFT_BLACK;
 
     // Initialise haptic feedback motor
@@ -332,12 +347,35 @@ void processTouch() {
                 startY = lastY = y;
                 touchTime = now;
                 touching = true;
+                topDrag = 0;
             } else {
                 return;
             }
         }
         // Touched / dragging
+        if (startY < 20 && mode != MODE_XY && mode != MODE_MENU) {
+            // Drag from top
+            topDrag = y;
+            return;
+        }
         switch(mode) {
+            case MODE_ENCODERS:
+                {
+                    int16_t dY = startY - y;
+                    if (dY < 5 && dY > -5)
+                        break;
+                    uint8_t val = 127 * (240 - y + 20) / 220;
+                    if (x < 60)
+                        BLEMidiServer.noteOn(15, dY<0?16:17, 127);
+                    else if (x < 120)
+                        BLEMidiServer.noteOn(15, dY<0?18:19, 127);
+                    else if (x < 180)
+                        BLEMidiServer.noteOn(15, dY<0?20:21, 127);
+                    else
+                        BLEMidiServer.noteOn(15, dY<0?22:23, 127);
+                    startY = y;
+                }
+                break;
             case MODE_XY:
                 cc_x = x * 127 / 240;
                 if (y > 20)
@@ -355,9 +393,9 @@ void processTouch() {
                         BLEMidiServer.controlChange(settings[SETTING_MIDICHAN], settings[SETTING_CCY], cc_y);
                     last_cc_y = cc_y;
                     if (y > 20)
-                        crosshair_y = y;
+                        crosshair_y = y - 20;
                     else
-                        crosshair_y = 20;
+                        crosshair_y = 0;
                 }
                 break;
             case MODE_PADS:
@@ -389,6 +427,15 @@ void processTouch() {
                 }
                 break;
             }
+            case MODE_MENU:
+                for (uint8_t i = 0; i < 5; ++i) {
+                    gfxButton* btn = menuBtns[i];
+                    if (btn->bounds(x, y)) {
+                        selPad = i;
+                        break;
+                    }
+                }
+                break;
             case MODE_SETTINGS:
             {
                 if (settingsBtns[SETTING_BRIGHTNESS]->bounds(x, y)) {
@@ -438,11 +485,22 @@ void processTouch() {
             return; // debounce
         releaseTime = now;
         touching = false;
+        if (topDrag) {
+            if (topDrag > 120)
+                mode = MODE_MENU;
+            topDrag = 0;
+            return;
+        }
         if (scrolling) {
             scrolling = false;
             return;
         }
         switch (mode) {
+            case MODE_MENU:
+                if (selPad < 5)
+                    mode = menuBtns[selPad]->getMode();
+                selPad = 255;
+                break;
             case MODE_PADS:
                 BLEMidiServer.noteOn(settings[SETTING_MIDICHAN], 48 + selPad, 0);
                 selPad = -1;
@@ -583,30 +641,25 @@ void onPowerButtonShortPress() {
         case MODE_TIMEOUT:
             mode = MODE_SETTINGS;
             break;
-        default:
-            if (mode == MODE_SETTINGS) {
-                uint32_t magic = MAGIC;
+        case MODE_MENU:
+            screenOff();
+            return;
+        case MODE_SETTINGS:
+            {
+            uint32_t magic = MAGIC;
                 EEPROM.writeBytes(0, &magic, 4);
                 EEPROM.writeBytes(4, settings, eepromSize);
                 EEPROM.commit();
-                mode = lastMode;
-            } else if(++mode >= MODE_SETTINGS) {
-                mode = MODE_XY;
-                screenOff();
-                return;
             }
+            // Fall through to default
+        default:
+            selPad = 255;
+            mode = MODE_MENU;
     }
-    if (mode == MODE_NAVIGATE1 || mode == MODE_NAVIGATE2) {
-        updateNavigationButtons();
-        selPad = -1;
-    } else if (mode == MODE_XY)
-        selPad = -1;
     screenOn();
 }
 
 void onPowerButtonLongPress() {
-    if (mode < MODE_SETTINGS)
-        lastMode = mode;
     mode = MODE_SETTINGS;
     settingsOffset = 0;
     screenOn();
@@ -616,11 +669,22 @@ void refresh() {
     canvas->fillScreen(TFT_BLACK); // Clear screen
     canvas->setTextColor(TFT_WHITE);  // Adding a background colour erases previous text automatically
     switch(mode) {
+        case MODE_MENU:
+            menuCanvas->fillSprite(TFT_BLACK);
+            for (uint8_t pad = 0; pad < 5; ++pad)
+                menuBtns[pad]->draw(selPad == pad);
+            break;
+        case MODE_ENCODERS:
+            canvas->fillRoundRect(0, 0, 59, 220, 10, TFT_DARKGREY);
+            canvas->fillRoundRect(60, 0, 59, 220, 10, TFT_DARKGREY);
+            canvas->fillRoundRect(120, 0, 59, 220, 10, TFT_DARKGREY);
+            canvas->fillRoundRect(180, 0, 59, 220, 10, TFT_DARKGREY);
+            break;
         case MODE_XY:
-            canvas->drawLine(crosshair_x, 20, crosshair_x, 240, TFT_YELLOW);
+            canvas->drawLine(crosshair_x, 0, crosshair_x, 240, TFT_YELLOW);
             canvas->drawLine(0, crosshair_y, 240, crosshair_y, TFT_YELLOW);
             if (pulseRadius)
-                canvas->drawCircle(120, 120, pulseRadius--, TFT_DARKCYAN);
+                canvas->drawCircle(120, 140, pulseRadius--, TFT_DARKCYAN);
             break;
         case MODE_PADS:
             for (uint8_t pad = 0; pad < 16; ++pad)
@@ -632,12 +696,14 @@ void refresh() {
                 navigationBtns[pad]->draw(navigationBtns[pad]->m_mode == selPad);
             break;
         case MODE_SETTINGS:
-            canvas->fillRect(236, 20, 4, 240, TFT_DARKGREY);
-            canvas->fillRect(236, 20 + 220 / 4 * settingsOffset, 4, 220 / 4, 0xa514);
+            // Settings scrollbar
+            canvas->fillRect(236, 0, 4, 240, TFT_DARKGREY);
+            canvas->fillRect(236, 0 + 220 / 4 * settingsOffset, 4, 220 / 4, 0xa514);
+
             for (uint8_t i = 0; i < 4; ++i) {
                 uint8_t j = settingsOffset + i;
                 gfxButton* btn = settingsBtns[j];
-                btn->m_y = 20 + i * 55;
+                btn->m_y = i * 55;
                 if (j == SETTING_BRIGHTNESS)
                     btn->drawBar(100 * settings[SETTING_BRIGHTNESS] / 255);
                 else if (j == SETTINGS_TIMEOUT)
@@ -646,7 +712,7 @@ void refresh() {
                     btn->draw();
                 canvas->setTextDatum(MR_DATUM);
                 int32_t x = 210;
-                int32_t y = 47 + 55 * i;
+                int32_t y = 27 + 55 * i;
                 if (j == 0)
                     if (settings[SETTING_BLE])
                         canvas->drawString("ON", x, y, 4);
@@ -668,34 +734,45 @@ void refresh() {
                 numPad[i]->draw();
             break;
     }
+
+    if (topDrag > 20) {
+        menuCanvas->pushSprite(0, topDrag - 220);
+        canvas->pushSprite(0, topDrag);
+        return;
+    } else if (mode == MODE_MENU) {
+        menuCanvas->pushSprite(0, 20);
+    } else {
+        canvas->pushSprite(0, 20);
+    }
     showStatus();
-    canvas->pushSprite(0, 0);
 }
 
 void showStatus() {
+    statusCanvas->fillSprite(TFT_BLACK);
     char s[10];
-    canvas->fillRect(0, 0, 239, 19, 0x1082); // Status bar background
-    canvas->fillRect(160, 5, 20, 10, TFT_DARKGREY); // Battery body
-    canvas->fillRect(180, 7, 2, 6, TFT_DARKGREY); // Battery tip
-    canvas->fillRect(160, 6, 20 * battery / 100, 8, battery < 10?TFT_RED:TFT_DARKGREEN); // Battery content
+    statusCanvas->fillRect(0, 0, 239, 19, 0x1082); // Status bar background
+    statusCanvas->fillRect(160, 5, 20, 10, TFT_DARKGREY); // Battery body
+    statusCanvas->fillRect(180, 7, 2, 6, TFT_DARKGREY); // Battery tip
+    statusCanvas->fillRect(160, 6, 20 * battery / 100, 8, battery < 10?TFT_RED:TFT_DARKGREEN); // Battery content
     if (battery > 90)
-        canvas->fillRect(179, 8, 2, 4, TFT_DARKGREEN); // Battery content
-    canvas->setTextColor(TFT_WHITE);
+        statusCanvas->fillRect(179, 8, 2, 4, TFT_DARKGREEN); // Battery content
+    statusCanvas->setTextColor(TFT_WHITE);
     sprintf(s, "%d%%", battery);
-    canvas->drawString(s, 190, 2, 2);
+    statusCanvas->drawString(s, 190, 2, 2);
     //BLE connection
     if (settings[SETTING_BLE]) {
-        canvas->setTextColor(BLEMidiServer.isConnected()?TFT_BLUE:TFT_DARKGREY);
-        canvas->drawString("\x8D", 226, 1);
+        statusCanvas->setTextColor(BLEMidiServer.isConnected()?TFT_BLUE:TFT_DARKGREY);
+        statusCanvas->drawString("\x8D", 226, 1);
         /*
-        canvas->fillRoundRect(226, 1, 10, 18, 4, BLEMidiServer.isConnected()?TFT_BLUE:TFT_DARKGREY);
-        canvas->drawLine(228, 6, 232, 12, TFT_WHITE);
-        canvas->drawLine(232, 12, 230, 15, TFT_WHITE);
-        canvas->drawLine(230, 15, 230, 3, TFT_WHITE);
-        canvas->drawLine(230, 3, 232, 6, TFT_WHITE);
-        canvas->drawLine(232, 6, 228, 12, TFT_WHITE);
+        statusCanvas->fillRoundRect(226, 1, 10, 18, 4, BLEMidiServer.isConnected()?TFT_BLUE:TFT_DARKGREY);
+        statusCanvas->drawLine(228, 6, 232, 12, TFT_WHITE);
+        statusCanvas->drawLine(232, 12, 230, 15, TFT_WHITE);
+        statusCanvas->drawLine(230, 15, 230, 3, TFT_WHITE);
+        statusCanvas->drawLine(230, 3, 232, 6, TFT_WHITE);
+        statusCanvas->drawLine(232, 6, 228, 12, TFT_WHITE);
         */
     }
+    statusCanvas->pushSprite(0, 0);
 }
 
 void startBle() {
