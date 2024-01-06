@@ -18,37 +18,37 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstdint>
 
 static const uint32_t PAD_COLOURS[] = {
-    0x8c10, // disabled
-    0xfec0, // starting
-    0x400, // playing
+    0x3186, // disabled
+    0x0dc0, // starting
+    0x0680, // playing
     0xf800, // stopping
     // groups
-    0x3906,
-    0xea44,
-    0x6a17,
-    0x3240,
-    0x6c1a,
-    0x650c,
-    0x0800,
-    0xba9e,
-    0xc993,
-    0xa8c0,
-    0x8c92,
-    0x0010,
-    0x230c,
-    0xaa15,
-    0xff1c,
-    0xb956,
-    0xeb14,
-    0x6104,
-    0x650c,
-    0xa50c,
-    0x8000,
-    0x211c,
-    0xff4c,
-    0xfcdc,
-    0x8000,
-    0xef0c
+    0x6124,
+    0x3b4c,
+    0x4b42,
+    0x6250,
+    0x4b93,
+    0x4cb9,
+    0x0300,
+    0xb54b,
+    0x9b26,
+    0x730c,
+    0xd38e,
+    0x000c,
+    0x0471,
+    0xf342,
+    0xbcef,
+    0x552a,
+    0xfb76,
+    0xcc2c,
+    0x4cb9,
+    0xb2b9,
+    0xb410,
+    0x003f,
+    0x9df5,
+    0xf89f,
+    0x3418,
+    0x9bfd
 };
 
 static const char* BTN_LABELS[] = {
@@ -58,7 +58,7 @@ static const char* BTN_LABELS[] = {
     "ZS3",
     "ALT",
     "\x82", // Metronome
-    "\x87", // Pad
+    "\x87", // Pads
     "F1",
     "\x89", // Rec
     "\x8A", // Stop
